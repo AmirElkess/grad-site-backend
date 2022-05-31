@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Smile!</title>
+    <style>
+        #container {
+            margin: 0px auto;
+            width: 500px;
+            height: 375px;
+            border: 10px #333 solid;
+        }
+
+        #videoElement {
+            width: 500px;
+            height: 375px;
+            transform: scaleX(-1);
+            background-color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WebSocket Chat</h1>
+    <div id="container">
+        <video autoplay="true" id="videoElement"></video>
+        <canvas id="capture" width="320" height="240"></canvas>
+    </div>
+    <form action="" onsubmit="sendMessage(event)">
+        <input type="text" id="messageText" autocomplete="off" />
+        <button>Send</button>
+    </form>
+    <ul id='messages'>
+    </ul>
+    <script>
+        var ws = new WebSocket("ws://localhost:8000/ws");
+        ws.onmessage = function (event) {
+            var messages = document.getElementById('messages')
+            var message = document.createElement('li')
+            var content = document.createTextNode(event.data)
+            message.appendChild(content)
+            messages.appendChild(message)
+        };
+
+        function sendMessage(event) {
+            var input = document.getElementById("messageText")
+            ws.send(input.value)
+            input.value = ''
+            event.preventDefault()
+        }
+
+        function sendData(data) {
+            ws.send(data)
+            event.preventDefault()
+        }
+
+        var video = document.querySelector("#videoElement");
+
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function (stream) {
+                    video.srcObject = stream;
+                })
+                .catch(function (err0r) {
+                    console.log("Something went wrong!");
+                });
+        }
+
+        const getFrame = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const data = canvas.toDataURL('image/jpeg');
+            return data;
+        }
+
+        document.getElementById("videoElement").addEventListener("click", () => {
+            let frame = getFrame()
+            sendData(frame)
+        });
+    </script>
+</body>
+
+</html>
