@@ -1,4 +1,8 @@
+import base64
 import io
+
+# import cStringIO
+import re
 from base64 import b64decode
 from collections import defaultdict
 
@@ -10,8 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from datasets import load_metric
-from imutils.video import VideoStream, WebcamVideoStream
 from PIL import Image
+
 from torchvision.transforms import (
     CenterCrop,
     Compose,
@@ -153,11 +157,8 @@ def process_image_from_array(image):
 
     custom_set = dict()
 
-    f = image  # .read()
+    f = image
     _bytes = bytearray(f)
-
-    # image = Image.open(io.BytesIO(_bytes))
-    # imshow(image, "gray")
 
     custom_set["img_bytes"] = _train_transforms(
         Image.open(io.BytesIO(_bytes)).convert("RGB")
@@ -169,64 +170,43 @@ def process_image_from_array(image):
     )
     return id2label[result]
 
+
 print("[INFO] loading model...")
-prototxt = './functions/model/preprocessing/deploy.prototxt'
-model = './functions/model/preprocessing/res10_300x300_ssd_iter_140000.caffemodel'
+prototxt = "./functions/model/preprocessing/deploy.prototxt"
+model = "./functions/model/preprocessing/res10_300x300_ssd_iter_140000.caffemodel"
 net = cv2.dnn.readNetFromCaffe(prototxt, model)
 
-def camera_loop():
-    vs = WebcamVideoStream(src=0).start()
-    # time.sleep(1)
-    count = 0
-    started = False
-    frame_counter = 0
-    while True:
-    # grab the frame from the threaded video stream and resize it
-    # to have a maximum width of 400 pixels
-        frame1 = vs.read()
-        frame = imutils.resize(frame1, width=400)
-        (h, w) = frame.shape[:2]
-        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
-        net.setInput(blob)
-        detections = net.forward()
-        for i in range(0, detections.shape[2]):
 
-            # extract the confidence (i.e., probability) associated with the prediction
-            confidence = detections[0, 0, i, 2]
+def b64_image_to_np_array(b64_image):
+    b64_image = b64_image.removeprefix("data:image/jpeg;base64,")
+    base64_decoded = base64.b64decode(b64_image)
+    image = Image.open(io.BytesIO(base64_decoded))
+    return np.array(image)
 
-            # filter out weak detections by ensuring the `confidence` is
-            # greater than the minimum confidence threshold
-            if confidence > 0.5:
-                started = True
-                # compute the (x, y)-coordinates of the bounding box for the object
-                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-                (startX, startY, endX, endY) = box.astype("int")
-                # draw the bounding box of the face along with the associated probability
-                # text = "{:.2f}%".format(confidence * 100)
-                y = startY - 10 if startY - 10 > 10 else startY + 10
-                cv2.rectangle(frame, (startX-1, startY-1), (endX+1, endY+1), (0, 0, 255), 1)
-                # cv2.putText(frame, text, (startX, y),
-                #     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
-        #if confidence >=0.9:
-                #cv2.imwrite("frame%d.jpg" % count, cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY))
-                #count += 1
 
-        if started:
+def process_base64_image(image):
+    frame1 = b64_image_to_np_array(image)
+    frame = imutils.resize(frame1, width=400)
+    (h, w) = frame.shape[:2]
+    blob = cv2.dnn.blobFromImage(
+        cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0)
+    )
+    net.setInput(blob)
+    detections = net.forward()
+    for i in range(0, detections.shape[2]):
+
+        confidence = detections[0, 0, i, 2]
+
+        if confidence > 0.5:
+            # compute the (x, y)-coordinates of the bounding box for the object
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            (startX, startY, endX, endY) = box.astype("int")
+
             cropped_frame = frame[startY:endY, startX:endX]
             cropped_frame = imutils.resize(cropped_frame, width=48)
-            cropped_frame = cv2.cvtColor(cropped_frame,cv2.COLOR_BGR2GRAY)
+            cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2GRAY)
 
-            prediction_text = process_image_from_array(cropped_frame)
-            
-            cv2.putText(frame, prediction_text, (startX, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
-            cv2.imshow("Frame",frame)
+            return process_image_from_array(cropped_frame)
 
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
-    cv2.destroyAllWindows()
-    vs.stop()
-    vs.stream.release()
-
-def prop_message(message):
-    return "Propagated message: " + message
+        else:
+            return "face not detected"
