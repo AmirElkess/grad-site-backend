@@ -1,8 +1,6 @@
 import base64
 import io
 
-# import cStringIO
-import re
 from base64 import b64decode
 from collections import defaultdict
 
@@ -165,10 +163,24 @@ def process_image_from_array(image):
     )
     custom_set["labels"] = 0
 
-    result = np.argmax(
-        trainer.predict([custom_set], ignore_keys=["labels"]).predictions
-    )
-    return id2label[result]
+    predictions = trainer.predict([custom_set], ignore_keys=["labels"]).predictions
+
+    best_prediction = id2label[np.argmax(predictions)]
+
+    labeled_predictions = {
+        "angry": str(predictions[0][0]),
+        "disgust": str(predictions[0][1]),
+        "fear": str(predictions[0][2]),
+        "happy": str(predictions[0][3]),
+        "neutral": str(predictions[0][4]),
+        "sad": str(predictions[0][5]),
+        "surprise": str(predictions[0][6]),
+    }
+    print(labeled_predictions)
+    return {
+        "best_prediction": best_prediction,
+        "labeled_predictions": labeled_predictions
+    }
 
 
 print("[INFO] loading model...")
@@ -206,7 +218,9 @@ def process_base64_image(image):
             cropped_frame = imutils.resize(cropped_frame, width=48)
             cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2GRAY)
 
-            return process_image_from_array(cropped_frame)
+            prediction = process_image_from_array(cropped_frame)
+
+            return {"has_prediction": True, "prediction": prediction}
 
         else:
-            return "face not detected"
+            return {"has_prediction": False, "prediction": "No face detected"}

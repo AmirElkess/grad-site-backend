@@ -18,40 +18,55 @@
             background-color: #666;
         }
     </style>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
 </head>
 
 <body>
-    <h1>WebSocket Chat</h1>
+    <center>
+        <h1>EMOTI</h1>
+    </center>
+
     <div id="container">
         <video autoplay="true" id="videoElement"></video>
         <canvas id="capture" width="320" height="240"></canvas>
     </div>
-    <form action="" onsubmit="sendMessage(event)">
-        <input type="text" id="messageText" autocomplete="off" />
-        <button>Send</button>
-    </form>
-    <ul id='messages'>
-    </ul>
+    <div id="chart_div"></div>
+
     <script>
         var ws = new WebSocket("ws://localhost:8000/ws");
-        ws.onmessage = function (event) {
-            var messages = document.getElementById('messages')
-            var message = document.createElement('li')
-            var content = document.createTextNode(event.data)
-            message.appendChild(content)
-            messages.appendChild(message)
-        };
 
-        function sendMessage(event) {
-            var input = document.getElementById("messageText")
-            ws.send(input.value)
-            input.value = ''
-            event.preventDefault()
+        var predictions = []
+
+        function addPrediction(pred) {
+            predictions.push(pred)
+            if (predictions.length > 5) {
+                predictions.shift()
+            }
+            console.log(predictions)
+
         }
+
+        ws.onmessage = function (event) {
+            let data = JSON.parse(event.data)
+
+            data.prediction.labeled_predictions["angry"] = parseFloat(data.prediction.labeled_predictions["angry"])
+            data.prediction.labeled_predictions["neutral"] = parseFloat(data.prediction.labeled_predictions["neutral"])
+            data.prediction.labeled_predictions["disgust"] = parseFloat(data.prediction.labeled_predictions["disgust"])
+            data.prediction.labeled_predictions["fear"] = parseFloat(data.prediction.labeled_predictions["fear"])
+            data.prediction.labeled_predictions["sad"] = parseFloat(data.prediction.labeled_predictions["sad"])
+            data.prediction.labeled_predictions["surprise"] = parseFloat(data.prediction.labeled_predictions["surprise"])
+            data.prediction.labeled_predictions["happy"] = parseFloat(data.prediction.labeled_predictions["happy"])
+
+
+            if (data["has_prediction"]) {
+                // addPrediction(data.prediction.labeled_predictions)
+                updateChart(data.prediction.labeled_predictions)
+            }
+        };
 
         function sendData(data) {
             ws.send(data)
-            event.preventDefault()
         }
 
         var video = document.querySelector("#videoElement");
@@ -61,7 +76,7 @@
                 .then(function (stream) {
                     video.srcObject = stream;
                 })
-                .catch(function (err0r) {
+                .catch(function (err) {
                     console.log("Something went wrong!");
                 });
         }
@@ -76,9 +91,68 @@
         }
 
         document.getElementById("videoElement").addEventListener("click", () => {
-            let frame = getFrame()
-            sendData(frame)
+            // event.preventDefault();
+            setInterval(function () {
+                let frame = getFrame()
+                sendData(frame)
+            }, 1000)
         });
+
+        google.charts.load("current", {
+            packages: ["corechart", "line"]
+        });
+
+        // set callback function when api loaded
+        var chart, data, options
+        google.charts.setOnLoadCallback(() => {
+            ({ chart, data, options } = drawChart())
+        });
+
+        function drawChart() {
+
+            // create data object with default value
+            let data = google.visualization.arrayToDataTable([
+                ["Time", "Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"],
+                [0, 0, 0, 0, 0, 0, 0, 0]
+            ]);
+
+            // create options object with titles, colors, etc.
+            let options = {
+                title: "Emoticator",
+                hAxis: {
+                    title: "Time"
+                },
+                vAxis: {
+                    title: "Emotion"
+                }
+            };
+
+            // draw chart on load
+            let chart = new google.visualization.LineChart(
+                document.getElementById("chart_div")
+            );
+
+            chart.draw(data, options);
+            return { chart, data, options }
+        }
+
+        // # "angry": 0,
+        // # "disgust": 1,
+        // # "fear": 2,
+        // # "happy": 3,
+        // # "neutral": 4,
+        // # "sad": 5,
+        // # "surprise": 6
+
+        // interval for adding new data every 250ms
+        let index = 0;
+        function updateChart(prediction) {
+
+            // instead of this random, you can make an ajax call for the current cpu usage or what ever data you want to display
+            data.addRow([index, prediction["angry"], prediction["disgust"], prediction["fear"], prediction["happy"], prediction["neutral"], prediction["sad"], prediction["surprise"]]);
+            chart.draw(data, options);
+            index++;
+        }
     </script>
 </body>
 
