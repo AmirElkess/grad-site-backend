@@ -28,7 +28,7 @@ Download the model from [Drive](https://drive.google.com/file/d/14ISB2cFMf_PbLKm
 Then `uvicorn server:app --reload` to run the server then head to [localhost:8000](localhost:8000)
 
 ## Model
-The model used for emotion classification is a ViT (Vision Transformer) trained on FER-2013 dataset. The accuracy of the model is 72% and it's still a work in progress.
+The model used for emotion classification is a ViT (Vision Transformer) trained on FER-2013 dataset. The accuracy of the model is 85.11%.
 
 ## Todo
 sections for
